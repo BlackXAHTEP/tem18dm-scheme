@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Схема тепловоза ТЭМ18ДМ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- === ИНФО-СТРОКА === -->
+    <div id="info">Схема тепловоза ТЭМ18ДМ — просмотр и управление</div>
+
+    <!-- === ЛЕВАЯ ПАНЕЛЬ УПРАВЛЕНИЯ === -->
+    <div id="panel">
+        <!-- Основные кнопки -->
+        <button id="btn-disconnect" class="btn btn-off">Нож</button>
+        <button id="btn-buk" class="btn btn-off">Блокировка 317</button>
+        <button id="btn-main-control" class="btn btn-off">Авт Упр Общее</button>
+        <button id="btn-key-bu" class="btn btn-off">Ключ БУ</button>
+        <button id="btn-epk" class="btn btn-off">ЭПК</button>
+        <button id="btn-usta" class="btn btn-off">Авт УСТА</button>
+        <button id="btn-display" class="btn btn-off">Авт Дисплей</button>
+        <button id="btn-alsn" class="btn btn-off">Авт АЛСН -</button>
+        <button id="btn-Alsn-plus" class="btn btn-off">Авт АЛСН +</button>
+        <button id="btn-excitation" class="btn btn-off">Авт. Возбуждение</button>
+        <button id="btn-fuel-pump" class="btn btn-off">Авт Топл. Насос</button>
+        <button id="btn-start-diesel" class="btn btn-off">Пуск Дизеля</button>
+        <button id="btn-stop-diesel" class="btn btn-off">Стоп Дизеля</button>
+        <button id="btn-oil-pump" class="btn btn-off">Тумб Масл. насос</button>
+        <button id="btn-fuel-pump-tumbler" class="btn btn-off">Тумблер Топл. Насос</button>
+        <button id="btn-pcht" class="btn btn-off">Ведомая секция</button>
+        <button id="btn-vpu" class="btn btn-off">ВПУ</button>
+        <button id="btn-exc-tumbler" class="btn btn-off">Тумблер Возбуждение</button>
+        <button id="btn-um-pu1" class="btn btn-off">УМ ПУ1</button>
+        <button id="btn-um-pu2" class="btn btn-off">УМ ПУ2</button>
+
+        <!-- ОМ -->
+        <div class="btn-row-om" title="ОМ: I / II / I+II / 0">
+            <button id="btn-om-i" class="btn-om">I</button>
+            <button id="btn-om-ii" class="btn-om">II</button>
+            <button id="btn-om-i-ii" class="btn-om">I+II</button>
+            <button id="btn-om-0" class="btn-om">0</button>
+        </div>
+
+        <!-- РММ -->
+        <div class="btn-row" title="РММ: ПУ1 / ПУ2">
+            <button id="btn-rmm-pu1" class="btn-rev">ПУ1</button>
+            <button id="btn-rmm-pu2" class="btn-rev">ПУ2</button>
+        </div>
+    </div>
+
+    <!-- === ПРАВАЯ ПАНЕЛЬ ОРГАНОВ УПРАВЛЕНИЯ === -->
+    <div id="control-panel">
+        <canvas id="compressor-canvas" width="130" height="150" style="margin: 0 auto; display: block;"></canvas>
+
+        <!-- Реверсор в правой панели -->
+        <div class="control-group" style="text-align: center; margin-top: 20px;">
+            <div style="font: bold 14px Arial; color: #333; margin-bottom: 10px;" title="Реверсор: Вперёд / Нейтраль / Назад">
+                Реверсор
+            </div>
+            <div class="btn-row" style="display: flex; justify-content: center; gap: 10px;">
+                <button id="btn-reversor-forward" class="btn-rev">↑</button>
+                <button id="btn-reversor-neutral" class="btn-rev">0</button>
+                <button id="btn-reversor-backward" class="btn-rev">↓</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- === СХЕМА === -->
+    <canvas id="scheme-canvas"></canvas>
+
+    <!-- === ПАНЕЛЬ ПРИБОРОВ (внизу) === -->
+    <div id="gauge-panel"></div>
+
+    <!-- === СКРИПТЫ === -->
+    <script src="elements.js"></script>
+    <script src="relay.js"></script>
+    <script src="relayT.js"></script>
+    <script src="wires.js"></script>
+    <script src="pribor.js"></script>
+    <script src="brakes.js"></script>
+    <script src="motors.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
