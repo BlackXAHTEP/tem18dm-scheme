@@ -1,3 +1,13 @@
+/**
+ * Файл: main.js
+ * Назначение: Основной скрипт схемы ТЭМ18ДМ
+ * Особенности:
+ * - Полная изоляция режима перемычек: при его включении — клики по элементам схемы блокируются
+ * - Кнопки управления остаются активными (они управляются отдельно)
+ * - Поддержка динамических сетей питания (плюс/минус)
+ * - Анимация и перерисовка через requestAnimationFrame
+ */
+
 const canvas = document.getElementById('scheme-canvas');
 const ctx = canvas.getContext('2d');
 const bgImage = new Image();
@@ -40,11 +50,22 @@ let isFuelPumpTumblerOn = false;
 let isPchtOn = false;
 let isStartDieselOn = false;
 
+// === ГЛОБАЛЬНЫЙ ФЛАГ РЕЖИМА ПЕРЕМЫЧЕК ===
+window.isJumperMode = false; // ← Доступен всем модулям
+
 // === КУРСОР И КЛИК ПО СХЕМЕ ===
 canvas.addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // В режиме перемычек — всегда крестик
+    if (window.isJumperMode) {
+        canvas.style.cursor = 'crosshair';
+        return;
+    }
+
+    // В обычном режиме — проверяем попадание в кликабельные элементы
     let isOverClickable = false;
     window.schemeElements?.forEach(el => {
         if (typeof el.isClickable === 'function' && el.isClickable(x, y)) {
@@ -54,21 +75,42 @@ canvas.addEventListener('mousemove', (e) => {
     canvas.style.cursor = isOverClickable ? 'pointer' : 'default';
 });
 
-canvas.addEventListener('click', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    let clicked = false;
-    window.schemeElements?.forEach(el => {
-        if (!clicked && typeof el.isClickable === 'function' && el.isClickable(x, y)) {
-            if (typeof el.onClick === 'function') {
-                el.onClick(x, y);
-                requestRedraw();
-                clicked = true;
-            }
+// --- УДАЛЯЕМ ЛЮБОЙ СТАРЫЙ ОБРАБОТЧИК ПРИ КАЖДОЙ УСТАНОВКЕ ---
+let currentClickHandler = null;
+
+function installCanvasClickHandler() {
+    // Удаляем предыдущий обработчик, если был
+    if (currentClickHandler) {
+        canvas.removeEventListener('click', currentClickHandler);
+    }
+
+    // Создаём новый
+    currentClickHandler = function(e) {
+        // 🔴 БЛОКИРОВКА: если включён режим перемычек — выходим сразу
+        if (window.isJumperMode) {
+            console.log('[main.js] Режим перемычек активен — клик по схеме заблокирован');
+            return;
         }
-    });
-});
+
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        let clicked = false;
+        window.schemeElements?.forEach(el => {
+            if (!clicked && typeof el.isClickable === 'function' && el.isClickable(x, y)) {
+                if (typeof el.onClick === 'function') {
+                    console.log(`[main.js] Активация элемента:`, el.name || el.constructor?.name || 'Unnamed element');
+                    el.onClick(x, y);
+                    requestRedraw();
+                    clicked = true;
+                }
+            }
+        });
+    };
+
+    canvas.addEventListener('click', currentClickHandler);
+}
 
 // === ОБНОВЛЕНИЕ КНОПОК ===
 function updateButtonState(id, isOn) {
@@ -302,6 +344,11 @@ function draw() {
     drawPoint(plusSource, '#f00', '+');
     drawPoint(minusSource, '#008000', '–');
     window.schemeElements?.forEach(el => typeof el.draw === 'function' && el.draw(ctx, nets));
+
+    // Отрисовка перемычек и подсветки точек
+    if (window.addJumperDrawHandler) {
+        window.addJumperDrawHandler(ctx);
+    }
 }
 
 bgImage.onload = () => draw();
@@ -329,6 +376,7 @@ window.getNetworks = () => networks;
 
 // === ИНИЦИАЛИЗАЦИЯ ===
 window.addEventListener('load', () => {
+    installCanvasClickHandler(); // ← Устанавливаем контролируемый обработчик
     initButtons();
     updateButtonState('btn-disconnect', isSwitchOn);
     updateButtonState('btn-usta', isUstaOn);
