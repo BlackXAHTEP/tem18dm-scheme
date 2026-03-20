@@ -1476,11 +1476,7 @@ const revBackward = {
 window.schemeElements.push(revBackward);
 window.animatedElements.push(revBackward);
 // =====================================================================================================================
-
-// =====================================================================================================================
-
-// ====================================================================================================================
-// === РЕЛЕ РКВ (обновлённое) ===
+// === РЕЛЕ РКВ (с задержкой включения и отключения 0.02 сек) ===
 const rkv = {
     coil: {
         inX: 758,
@@ -1503,6 +1499,9 @@ const rkv = {
     isForcedOn: false,
     isPowered: false,
     isActive: false,
+    countdown: 0,
+    timer: null,
+    isTimerStarted: false,
 
     isClickable(x, y) {
         return x >= this.coil.inX - 10 && x <= this.coil.inX + 10 &&
@@ -1511,14 +1510,74 @@ const rkv = {
 
     onClick() {
         this.isForcedOn = !this.isForcedOn;
+        if (this.isForcedOn) {
+            this.isActive = true;
+            this.isTimerStarted = false;
+            this.countdown = 0;
+            if (this.timer) {
+                clearInterval(this.timer);
+                this.timer = null;
+            }
+        } else {
+            this.isActive = false;
+            this.stopTimer();
+        }
         requestRedraw();
+    },
+
+    startTimer(durationMs) {
+        if (this.isTimerStarted) return;
+
+        this.isTimerStarted = true;
+        this.countdown = durationMs / 100; // количество шагов (0.1с)
+        console.log(`РКВ: старт задержки ${durationMs} мс`);
+
+        this.timer = setInterval(() => {
+            this.countdown -= 1;
+            if (this.countdown <= 0) {
+                clearInterval(this.timer);
+                this.timer = null;
+                this.isActive = this.isPowered; // только если питание ещё есть!
+                this.isTimerStarted = false;
+                console.log('РКВ: задержка завершена, реле ' + (this.isActive ? 'включено' : 'выключено'));
+            }
+            requestRedraw(); // для анимации
+        }, 100); // обновление каждые 100 мс
+    },
+
+    stopTimer() {
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
+        }
+        this.countdown = 0;
+        this.isTimerStarted = false;
     },
 
     update(plusPoints, minusPoints) {
         const hasPlus = plusPoints.has(`${this.coil.inX},${this.coil.inY}`);
         const hasMinus = minusPoints.has(`${this.coil.outX},${this.coil.outY}`);
-        this.isPowered = hasPlus && hasMinus;
-        this.isActive = this.isForcedOn || this.isPowered;
+        const isPowered = this.isForcedOn || (hasPlus && hasMinus);
+
+        // Сохраняем предыдущее состояние питания
+        const wasPowered = this.isPowered;
+        this.isPowered = isPowered;
+
+        // Включение: появилось питание, реле выключено
+        if (isPowered && !wasPowered && !this.isActive && !this.isTimerStarted) {
+            this.startTimer(20); // 0.02 сек = 20 мс
+        }
+
+        // Выключение: пропало питание, реле включено
+        if (!isPowered && wasPowered && this.isActive && !this.isTimerStarted) {
+            this.startTimer(20); // 0.02 сек = 20 мс
+        }
+
+        // Если ручное управление — принудительно включаем
+        if (this.isForcedOn) {
+            this.isActive = true;
+            this.stopTimer();
+        }
     },
 
     getPropagationRules(plusPoints, minusPoints) {
@@ -1531,25 +1590,18 @@ const rkv = {
             const inPoint = `${this.contactNO_Minus.inX},${this.contactNO_Minus.inY}`;
             const outPoint = `${this.contactNO_Minus.outX},${this.contactNO_Minus.outY}`;
 
-            // Проверяем, есть ли минус на входе или выходе — если да, распространяем в обе стороны
             const hasMinusIn = minusPoints.has(inPoint);
             const hasMinusOut = minusPoints.has(outPoint);
 
-            if (hasMinusIn) {
+            if (hasMinusIn || hasMinusOut) {
                 rules.push(
                     { from: inPoint, to: outPoint, type: 'minus' },
-                    { from: outPoint, to: inPoint, type: 'minus' }  // двунаправленный
-                );
-            }
-            if (hasMinusOut && !hasMinusIn) {
-                rules.push(
-                    { from: outPoint, to: inPoint, type: 'minus' },
-                    { from: inPoint, to: outPoint, type: 'minus' }  // двунаправленный
+                    { from: outPoint, to: inPoint, type: 'minus' }
                 );
             }
         }
 
-        // === Пропуск "+" на НО контакте (1753,592 → 1786,592) — как раньше (однонаправленный) ===
+        // === Пропуск "+" на НО контакте (1753,592 → 1786,592) ===
         if (this.isActive) {
             rules.push({
                 from: `${this.contactNO_Plus.inX},${this.contactNO_Plus.inY}`,
@@ -1577,7 +1629,8 @@ const rkv = {
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // === Отрисовка НО контакта по "-" (800,227 → 825,227) — как у П1, но с двунаправленной логикой
+
+        // === Отрисовка НО контакта по "-" (800,227 → 825,227) ===
         const cNOm = this.contactNO_Minus;
         const hasInputNOm = minusPoints.has(`${cNOm.inX},${cNOm.inY}`);
         const colorNOm = hasInputNOm ? '#008000' : '#000';
@@ -1590,7 +1643,6 @@ const rkv = {
         ctx.stroke();
 
         if (this.isActive) {
-            // Замкнут — зелёная линия
             ctx.beginPath();
             ctx.moveTo(cNOm.inX + 10, cNOm.inY);
             ctx.lineTo(cNOm.outX, cNOm.outY);
@@ -1598,7 +1650,6 @@ const rkv = {
             ctx.lineWidth = 3;
             ctx.stroke();
         } else {
-            // Разомкнут — белая полоса + косая линия
             ctx.beginPath();
             ctx.moveTo(cNOm.inX + 10, cNOm.inY);
             ctx.lineTo(cNOm.outX, cNOm.outY);
@@ -1614,7 +1665,7 @@ const rkv = {
             ctx.stroke();
         }
 
-        // === Отрисовка НО контакта по "+" (1753,592 → 1786,592)
+        // === Отрисовка НО контакта по "+" (1753,592 → 1786,592) ===
         const cNOp = this.contactNO_Plus;
         const hasInputNOp = plusPoints.has(`${cNOp.inX},${cNOp.inY}`);
 
@@ -1654,34 +1705,33 @@ const rkv = {
 window.schemeElements.push(rkv);
 window.animatedElements.push(rkv);
 // =====================================================================================================================
-// === РЕЛЕ П1 (обновлённое) ===
-const p1 = {
+// === РЕЛЕ ПЭ1 (новое) ===
+const pe1 = {
     coil: {
         inX: 763,
         inY: 378,
         outX: 773,
         outY: 378
     },
-    contactNC_Minus: {
+    contactNC_Minus: { // НЗ контакт по минусу (830,355 ⇄ 830,325)
         inX: 830,
         inY: 355,
         outX: 830,
         outY: 325
     },
-    contactNO_Plus: { // НО контакт по "+"
+    contactNO_Plus_Horizontal: { // НО контакт (143,530 → 173,530)
         inX: 143,
         inY: 530,
         outX: 173,
         outY: 530
     },
-    contactNO_Plus_Vertical: { // НО контакт по "+", вертикальный (2601,252 → 2601,291)
+    contactNO_Plus_Vertical: { // НО контакт (2601,252 → 2601,291)
         inX: 2601,
         inY: 252,
         outX: 2601,
         outY: 291
     },
     isForcedOn: false,
-    lastPowered: false,
 
     isClickable(x, y) {
         return x >= this.coil.inX - 10 && x <= this.coil.inX + 10 &&
@@ -1693,27 +1743,24 @@ const p1 = {
         requestRedraw();
     },
 
-    getState(plusPoints, minusPoints) {
+    isActive(plusPoints, minusPoints) {
         const hasPlus = plusPoints.has(`${this.coil.inX},${this.coil.inY}`);
         const hasMinus = minusPoints.has(`${this.coil.outX},${this.coil.outY}`);
         return this.isForcedOn || (hasPlus && hasMinus);
     },
 
-    update(plusPoints, minusPoints) {
-        const isPowered = this.getState(plusPoints, minusPoints);
-        this.lastPowered = isPowered;
-    },
-
     getPropagationRules(plusPoints, minusPoints) {
-        const isPowered = this.getState(plusPoints, minusPoints);
-        const inPoint = `${this.contactNC_Minus.inX},${this.contactNC_Minus.inY}`;
-        const outPoint = `${this.contactNC_Minus.outX},${this.contactNC_Minus.outY}`;
-
+        const isActive = this.isActive(plusPoints, minusPoints);
         const rules = [];
 
-        // НЗ контакт по минусу — пропускает при ОТКЛЮЧЕНИИ
-        if (!isPowered) {
-            if (minusPoints.has(inPoint) || minusPoints.has(outPoint)) {
+        // === НЗ контакт по минусу (830,355 ⇄ 830,325) — работает при ОТКЛЮЧЕНИИ ===
+        if (!isActive) {
+            const inPoint = `${this.contactNC_Minus.inX},${this.contactNC_Minus.inY}`;
+            const outPoint = `${this.contactNC_Minus.outX},${this.contactNC_Minus.outY}`;
+            const hasMinusIn = minusPoints.has(inPoint);
+            const hasMinusOut = minusPoints.has(outPoint);
+
+            if (hasMinusIn || hasMinusOut) {
                 rules.push(
                     { from: inPoint, to: outPoint, type: 'minus' },
                     { from: outPoint, to: inPoint, type: 'minus' }
@@ -1721,20 +1768,22 @@ const p1 = {
             }
         }
 
-        // НО контакт по плюсу — пропускает при ВКЛЮЧЕНИИ
-        if (isPowered) {
-            rules.push({
-                from: `${this.contactNO_Plus.inX},${this.contactNO_Plus.inY}`,
-                to: `${this.contactNO_Plus.outX},${this.contactNO_Plus.outY}`,
-                type: 'plus'
-            });
+        // === НО контакт по "+" (143,530 → 173,530) — работает при ВКЛЮЧЕНИИ ===
+        if (isActive) {
+            const inPoint = `${this.contactNO_Plus_Horizontal.inX},${this.contactNO_Plus_Horizontal.inY}`;
+            const outPoint = `${this.contactNO_Plus_Horizontal.outX},${this.contactNO_Plus_Horizontal.outY}`;
+            if (plusPoints.has(inPoint)) {
+                rules.push({ from: inPoint, to: outPoint, type: 'plus' });
+            }
+        }
 
-            // НО вертикальный контакт — плюс (2601,252 → 2601,291)
-            rules.push({
-                from: `${this.contactNO_Plus_Vertical.inX},${this.contactNO_Plus_Vertical.inY}`,
-                to: `${this.contactNO_Plus_Vertical.outX},${this.contactNO_Plus_Vertical.outY}`,
-                type: 'plus'
-            });
+        // === НО контакт по "+" вертикальный (2601,252 → 2601,291) ===
+        if (isActive) {
+            const inPoint = `${this.contactNO_Plus_Vertical.inX},${this.contactNO_Plus_Vertical.inY}`;
+            const outPoint = `${this.contactNO_Plus_Vertical.outX},${this.contactNO_Plus_Vertical.outY}`;
+            if (plusPoints.has(inPoint)) {
+                rules.push({ from: inPoint, to: outPoint, type: 'plus' });
+            }
         }
 
         return rules;
@@ -1742,31 +1791,34 @@ const p1 = {
 
     draw(ctx, networks) {
         const { plusPoints, minusPoints } = networks;
-        const hasPlus = plusPoints.has(`${this.coil.inX},${this.coil.inY}`);
-        const hasMinus = minusPoints.has(`${this.coil.outX},${this.coil.outY}`);
-        const isPowered = this.isForcedOn || (hasPlus && hasMinus);
+        const isActive = this.isActive(plusPoints, minusPoints);
 
         // Отрисовка катушки
-        const strokeColor = this.isForcedOn ? '#f80' : (isPowered ? '#c00' : '#000');
+        const hasPlus = plusPoints.has(`${this.coil.inX},${this.coil.inY}`);
+        const hasMinus = minusPoints.has(`${this.coil.outX},${this.coil.outY}`);
+        const strokeColor = this.isForcedOn ? '#f80' : (hasPlus && hasMinus ? '#c00' : '#000');
+
         ctx.beginPath();
         ctx.rect(this.coil.inX, this.coil.inY - 10, 10, 20);
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // === Отрисовка НЗ контакта по "-" (830,355 → 830,325) ===
+        // === Отрисовка НЗ контакта по минусу (830,355 → 830,325) ===
         const nc = this.contactNC_Minus;
         const hasMinusContact = minusPoints.has(`${nc.inX},${nc.inY}`) || minusPoints.has(`${nc.outX},${nc.outY}`);
         const color = hasMinusContact ? '#008000' : '#000';
 
+        // Левая часть (вход)
         ctx.beginPath();
         ctx.moveTo(nc.inX, nc.inY);
         ctx.lineTo(nc.inX, nc.inY - 8);
-        ctx.lineTo(nc.inX + 14, nc.inY - 8);
+        ctx.lineTo(nc.inX + 15, nc.inY - 8);
         ctx.strokeStyle = color;
         ctx.lineWidth = 3;
         ctx.stroke();
 
+        // Правая часть (выход)
         ctx.beginPath();
         ctx.moveTo(nc.outX, nc.outY);
         ctx.lineTo(nc.outX, nc.outY + 8);
@@ -1775,7 +1827,8 @@ const p1 = {
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        if (!isPowered) {
+        if (!isActive) {
+            // Замкнут
             ctx.beginPath();
             ctx.moveTo(nc.inX + 10, nc.inY - 8);
             ctx.lineTo(nc.outX + 16, nc.outY + 5);
@@ -1783,119 +1836,114 @@ const p1 = {
             ctx.lineWidth = 3;
             ctx.stroke();
         } else {
+            // Разомкнут — белая полоса
             ctx.beginPath();
-            ctx.moveTo(nc.inX + 16, nc.inY);
-            ctx.lineTo(nc.inX + 16, nc.outY);
+            ctx.moveTo(nc.inX + 15, nc.inY - 15);
+            ctx.lineTo(nc.inX, nc.inY - 15);
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 8;
             ctx.stroke();
         }
 
-        // === Отрисовка НО контакта по "+" (143,530 → 173,530) ===
-        const no = this.contactNO_Plus;
-        const hasInput = plusPoints.has(`${no.inX},${no.inY}`);
-
+        // === Отрисовка НО контакта (143,530 → 173,530) ===
+        const no1 = this.contactNO_Plus_Horizontal;
+        const hasInput1 = plusPoints.has(`${no1.inX},${no1.inY}`);
         ctx.beginPath();
-        ctx.moveTo(no.inX, no.inY);
-        ctx.lineTo(no.inX + 10, no.inY);
-        ctx.strokeStyle = hasInput ? '#c00' : '#000';
+        ctx.moveTo(no1.inX, no1.inY);
+        ctx.lineTo(no1.inX + 10, no1.inY);
+        ctx.strokeStyle = hasInput1 ? '#c00' : '#000';
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        if (isPowered) {
+        if (isActive) {
             ctx.beginPath();
-            ctx.moveTo(no.inX + 10, no.inY);
-            ctx.lineTo(no.outX, no.outY);
-            ctx.strokeStyle = hasInput ? '#c00' : '#000';
+            ctx.moveTo(no1.inX + 10, no1.inY);
+            ctx.lineTo(no1.outX, no1.outY);
+            ctx.strokeStyle = hasInput1 ? '#c00' : '#000';
             ctx.lineWidth = 3;
             ctx.stroke();
         } else {
             ctx.beginPath();
-            ctx.moveTo(no.inX + 10, no.inY);
-            ctx.lineTo(no.outX, no.outY);
+            ctx.moveTo(no1.inX + 10, no1.inY);
+            ctx.lineTo(no1.outX, no1.outY);
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 5;
             ctx.stroke();
 
             ctx.beginPath();
-            ctx.moveTo(no.outX, no.outY);
-            ctx.lineTo(no.outX - 18, no.outY - 10);
+            ctx.moveTo(no1.outX, no1.outY);
+            ctx.lineTo(no1.outX - 18, no1.outY - 10);
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 3;
             ctx.stroke();
         }
 
-        // === Отрисовка НО вертикального контакта по "+" (2601,252 → 2601,291) ===
-        const noVert = this.contactNO_Plus_Vertical;
-        const hasInputVert = plusPoints.has(`${noVert.inX},${noVert.inY}`);
-
+        // === Отрисовка НО контакта (2601,252 → 2601,291) ===
+        const no2 = this.contactNO_Plus_Vertical;
+        const hasInput2 = plusPoints.has(`${no2.inX},${no2.inY}`);
         ctx.beginPath();
-        ctx.moveTo(noVert.inX, noVert.inY);
-        ctx.lineTo(noVert.inX, noVert.inY + 10);
-        ctx.lineTo(noVert.inX - 12, noVert.inY + 10);
-        ctx.strokeStyle = hasInputVert ? '#c00' : '#000';
+        ctx.moveTo(no2.inX, no2.inY);
+        ctx.lineTo(no2.inX, no2.inY + 10);
+        ctx.strokeStyle = hasInput2 ? '#c00' : '#000';
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        ctx.beginPath();
-        ctx.moveTo(noVert.outX, noVert.outY);
-        ctx.lineTo(noVert.outX, noVert.outY - 10);
-        ctx.lineTo(noVert.outX - 12, noVert.outY - 10);
-        ctx.strokeStyle = hasInputVert ? '#c00' : '#000';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
-        if (isPowered) {
+        if (isActive) {
             ctx.beginPath();
-            ctx.moveTo(noVert.inX - 10, noVert.inY + 10);
-            ctx.lineTo(noVert.inX - 5, noVert.inY + 23);
-            ctx.strokeStyle = hasInputVert ? '#c00' : '#000';
+            ctx.moveTo(no2.inX, no2.inY + 10);
+            ctx.lineTo(no2.outX, no2.outY);
+            ctx.strokeStyle = hasInput2 ? '#c00' : '#000';
             ctx.lineWidth = 3;
             ctx.stroke();
         } else {
             ctx.beginPath();
-            ctx.moveTo(noVert.inX - 15, noVert.inY + 15);
-            ctx.lineTo(noVert.inX, noVert.inY + 15);
+            ctx.moveTo(no2.inX, no2.inY + 10);
+            ctx.lineTo(no2.outX, no2.outY);
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 7;
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(no2.outX, no2.outY);
+            ctx.lineTo(no2.outX - 18, no2.outY - 10);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
             ctx.stroke();
         }
     }
 };
 
 // Добавляем в глобальные массивы
-window.schemeElements.push(p1);
-window.animatedElements.push(p1);
+window.schemeElements.push(pe1);
+window.animatedElements.push(pe1);
 // ========================================================================================================================
-// === РЕЛЕ П2 (обновлённое) ===
-const p2 = {
+// === РЕЛЕ ПЭ2 (новое) ===
+const pe2 = {
     coil: {
         inX: 779,
         inY: 406,
         outX: 789,
         outY: 406
     },
-    contactNC_Minus: {
+    contactNC_Minus: { // НЗ контакт по минусу (831,304 ⇄ 831,277)
         inX: 831,
         inY: 304,
         outX: 831,
         outY: 277
     },
-    contactNO_Plus: {
+    contactNO_Plus_Horizontal: { // НО контакт (211,530 → 245,530)
         inX: 211,
         inY: 530,
         outX: 245,
         outY: 530
     },
-    contactNO_Plus_Vertical: { // НО контакт по "+", вертикальный (2901,252 → 2901,291)
+    contactNO_Plus_Vertical: { // НО контакт (2901,252 → 2901,291)
         inX: 2901,
         inY: 252,
         outX: 2901,
         outY: 291
     },
     isForcedOn: false,
-    isPowered: false,
-    isActive: false,
 
     isClickable(x, y) {
         return x >= this.coil.inX - 10 && x <= this.coil.inX + 10 &&
@@ -1907,53 +1955,47 @@ const p2 = {
         requestRedraw();
     },
 
-    update(plusPoints, minusPoints) {
+    isActive(plusPoints, minusPoints) {
         const hasPlus = plusPoints.has(`${this.coil.inX},${this.coil.inY}`);
         const hasMinus = minusPoints.has(`${this.coil.outX},${this.coil.outY}`);
-        this.isPowered = hasPlus && hasMinus;
-        this.isActive = this.isForcedOn || this.isPowered;
+        return this.isForcedOn || (hasPlus && hasMinus);
     },
 
     getPropagationRules(plusPoints, minusPoints) {
-        this.update(plusPoints, minusPoints);
-
+        const isActive = this.isActive(plusPoints, minusPoints);
         const rules = [];
 
-        // === НЗ контакт по "-" (831,304 ⇄ 831,277) — замыкается при ОТКЛЮЧЕНИИ реле ===
-        if (!this.isActive) {
+        // === НЗ контакт по минусу (831,304 ⇄ 831,277) — работает при ОТКЛЮЧЕНИИ ===
+        if (!isActive) {
             const inPoint = `${this.contactNC_Minus.inX},${this.contactNC_Minus.inY}`;
             const outPoint = `${this.contactNC_Minus.outX},${this.contactNC_Minus.outY}`;
             const hasMinusIn = minusPoints.has(inPoint);
             const hasMinusOut = minusPoints.has(outPoint);
 
-            if (hasMinusIn) {
+            if (hasMinusIn || hasMinusOut) {
                 rules.push(
                     { from: inPoint, to: outPoint, type: 'minus' },
                     { from: outPoint, to: inPoint, type: 'minus' }
                 );
             }
-            if (hasMinusOut && !hasMinusIn) {
-                rules.push(
-                    { from: outPoint, to: inPoint, type: 'minus' },
-                    { from: inPoint, to: outPoint, type: 'minus' }
-                );
+        }
+
+        // === НО контакт по "+" (211,530 → 245,530) — работает при ВКЛЮЧЕНИИ ===
+        if (isActive) {
+            const inPoint = `${this.contactNO_Plus_Horizontal.inX},${this.contactNO_Plus_Horizontal.inY}`;
+            const outPoint = `${this.contactNO_Plus_Horizontal.outX},${this.contactNO_Plus_Horizontal.outY}`;
+            if (plusPoints.has(inPoint)) {
+                rules.push({ from: inPoint, to: outPoint, type: 'plus' });
             }
         }
 
-        // === НО контакт по "+" (211,530 → 245,530) — замыкается при ВКЛЮЧЕНИИ реле ===
-        if (this.isActive) {
-            rules.push({
-                from: `${this.contactNO_Plus.inX},${this.contactNO_Plus.inY}`,
-                to: `${this.contactNO_Plus.outX},${this.contactNO_Plus.outY}`,
-                type: 'plus'
-            });
-
-            // НО вертикальный контакт — плюс (2901,252 → 2901,291)
-            rules.push({
-                from: `${this.contactNO_Plus_Vertical.inX},${this.contactNO_Plus_Vertical.inY}`,
-                to: `${this.contactNO_Plus_Vertical.outX},${this.contactNO_Plus_Vertical.outY}`,
-                type: 'plus'
-            });
+        // === НО контакт по "+" вертикальный (2901,252 → 2901,291) ===
+        if (isActive) {
+            const inPoint = `${this.contactNO_Plus_Vertical.inX},${this.contactNO_Plus_Vertical.inY}`;
+            const outPoint = `${this.contactNO_Plus_Vertical.outX},${this.contactNO_Plus_Vertical.outY}`;
+            if (plusPoints.has(inPoint)) {
+                rules.push({ from: inPoint, to: outPoint, type: 'plus' });
+            }
         }
 
         return rules;
@@ -1961,13 +2003,12 @@ const p2 = {
 
     draw(ctx, networks) {
         const { plusPoints, minusPoints } = networks;
-        this.update(plusPoints, minusPoints);
+        const isActive = this.isActive(plusPoints, minusPoints);
 
         // Отрисовка катушки
         const hasPlus = plusPoints.has(`${this.coil.inX},${this.coil.inY}`);
         const hasMinus = minusPoints.has(`${this.coil.outX},${this.coil.outY}`);
-        const isPowered = hasPlus && hasMinus;
-        const strokeColor = this.isForcedOn ? '#f80' : (isPowered ? '#c00' : '#000');
+        const strokeColor = this.isForcedOn ? '#f80' : (hasPlus && hasMinus ? '#c00' : '#000');
 
         ctx.beginPath();
         ctx.rect(this.coil.inX, this.coil.inY - 10, 10, 20);
@@ -1975,125 +2016,118 @@ const p2 = {
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // === Отрисовка НЗ контакта по "-" (831,304 → 831,277) ===
-        const cNCm = this.contactNC_Minus;
-        const hasMinusContact = minusPoints.has(`${cNCm.inX},${cNCm.inY}`) || minusPoints.has(`${cNCm.outX},${cNCm.outY}`);
+        // === Отрисовка НЗ контакта по минусу (831,304 → 831,277) ===
+        const nc = this.contactNC_Minus;
+        const hasMinusContact = minusPoints.has(`${nc.inX},${nc.inY}`) || minusPoints.has(`${nc.outX},${nc.outY}`);
         const color = hasMinusContact ? '#008000' : '#000';
 
+        // Верхняя часть (вход)
         ctx.beginPath();
-        ctx.moveTo(cNCm.inX, cNCm.inY);
-        ctx.lineTo(cNCm.inX, cNCm.inY - 8);
-        ctx.lineTo(cNCm.inX + 14, cNCm.inY - 8);
+        ctx.moveTo(nc.inX, nc.inY);
+        ctx.lineTo(nc.inX, nc.inY -8);
+        ctx.lineTo(nc.inX + 14, nc.inY - 8);
         ctx.strokeStyle = color;
         ctx.lineWidth = 3;
         ctx.stroke();
 
+        // Нижняя часть (выход)
         ctx.beginPath();
-        ctx.moveTo(cNCm.outX, cNCm.outY);
-        ctx.lineTo(cNCm.outX, cNCm.outY + 8);
-        ctx.lineTo(cNCm.outX + 16, cNCm.outY + 8);
+        ctx.moveTo(nc.outX, nc.outY);
+        ctx.lineTo(nc.outX, nc.outY + 6);
+        ctx.lineTo(nc.outX + 14, nc.outY + 6);
         ctx.strokeStyle = color;
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        if (!this.isActive) {
+        if (!isActive) {
+            // Замкнут
             ctx.beginPath();
-            ctx.moveTo(cNCm.inX + 10, cNCm.inY - 8);
-            ctx.lineTo(cNCm.outX + 16, cNCm.outY + 5);
+            ctx.moveTo(nc.inX + 8, nc.inY - 8);
+            ctx.lineTo(nc.outX + 12, nc.outY + 8);
             ctx.strokeStyle = color;
             ctx.lineWidth = 3;
             ctx.stroke();
         } else {
+            // Разомкнут — белая полоса
             ctx.beginPath();
-            ctx.moveTo(cNCm.inX + 16, cNCm.inY);
-            ctx.lineTo(cNCm.inX + 16, cNCm.outY);
+            ctx.moveTo(nc.inX + 15, nc.inY - 15);
+            ctx.lineTo(nc.inX, nc.inY - 15);
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 8;
             ctx.stroke();
-
-            ctx.beginPath();
-            ctx.moveTo(cNCm.inX + 16, cNCm.inY);
-            ctx.lineTo(cNCm.inX + 22, cNCm.inY - 10);
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.stroke();
         }
 
-        // === Отрисовка НО контакта по "+" (211,530 → 245,530) ===
-        const cNOp = this.contactNO_Plus;
-        const hasInput = plusPoints.has(`${cNOp.inX},${cNOp.inY}`);
-
+        // === Отрисовка НО контакта (211,530 → 245,530) ===
+        const no1 = this.contactNO_Plus_Horizontal;
+        const hasInput1 = plusPoints.has(`${no1.inX},${no1.inY}`);
         ctx.beginPath();
-        ctx.moveTo(cNOp.inX, cNOp.inY);
-        ctx.lineTo(cNOp.inX + 10, cNOp.inY);
-        ctx.strokeStyle = hasInput ? '#c00' : '#000';
+        ctx.moveTo(no1.inX, no1.inY);
+        ctx.lineTo(no1.inX + 10, no1.inY);
+        ctx.strokeStyle = hasInput1 ? '#c00' : '#000';
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        if (this.isActive) {
+        if (isActive) {
             ctx.beginPath();
-            ctx.moveTo(cNOp.inX + 10, cNOp.inY);
-            ctx.lineTo(cNOp.outX, cNOp.outY);
-            ctx.strokeStyle = hasInput ? '#c00' : '#000';
+            ctx.moveTo(no1.inX + 10, no1.inY);
+            ctx.lineTo(no1.outX, no1.outY);
+            ctx.strokeStyle = hasInput1 ? '#c00' : '#000';
             ctx.lineWidth = 3;
             ctx.stroke();
         } else {
             ctx.beginPath();
-            ctx.moveTo(cNOp.inX + 10, cNOp.inY);
-            ctx.lineTo(cNOp.outX, cNOp.outY);
+            ctx.moveTo(no1.inX + 10, no1.inY);
+            ctx.lineTo(no1.outX, no1.outY);
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 5;
             ctx.stroke();
 
             ctx.beginPath();
-            ctx.moveTo(cNOp.outX, cNOp.outY);
-            ctx.lineTo(cNOp.outX - 18, cNOp.outY - 10);
+            ctx.moveTo(no1.outX, no1.outY);
+            ctx.lineTo(no1.outX - 18, no1.outY - 10);
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 3;
             ctx.stroke();
         }
 
-        // === Отрисовка НО вертикального контакта по "+" (2901,252 → 2901,291) ===
-        const noVert = this.contactNO_Plus_Vertical;
-        const hasInputVert = plusPoints.has(`${noVert.inX},${noVert.inY}`);
-
+        // === Отрисовка НО контакта (2901,252 → 2901,291) ===
+        const no2 = this.contactNO_Plus_Vertical;
+        const hasInput2 = plusPoints.has(`${no2.inX},${no2.inY}`);
         ctx.beginPath();
-        ctx.moveTo(noVert.inX, noVert.inY);
-        ctx.lineTo(noVert.inX, noVert.inY + 10);
-        ctx.lineTo(noVert.inX - 12, noVert.inY + 10);
-        ctx.strokeStyle = hasInputVert ? '#c00' : '#000';
+        ctx.moveTo(no2.inX, no2.inY);
+        ctx.lineTo(no2.inX, no2.inY + 10);
+        ctx.strokeStyle = hasInput2 ? '#c00' : '#000';
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        ctx.beginPath();
-        ctx.moveTo(noVert.outX, noVert.outY);
-        ctx.lineTo(noVert.outX, noVert.outY - 10);
-        ctx.lineTo(noVert.outX - 12, noVert.outY - 10);
-        ctx.strokeStyle = hasInputVert ? '#c00' : '#000';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
-        if (this.isActive) {
+        if (isActive) {
             ctx.beginPath();
-            ctx.moveTo(noVert.inX - 10, noVert.inY + 10);
-            ctx.lineTo(noVert.inX - 5, noVert.inY + 23);
-            ctx.strokeStyle = hasInputVert ? '#c00' : '#000';
+            ctx.moveTo(no2.inX, no2.inY + 10);
+            ctx.lineTo(no2.outX, no2.outY);
+            ctx.strokeStyle = hasInput2 ? '#c00' : '#000';
             ctx.lineWidth = 3;
             ctx.stroke();
         } else {
             ctx.beginPath();
-            ctx.moveTo(noVert.inX - 15, noVert.inY + 15);
-            ctx.lineTo(noVert.inX, noVert.inY + 15);
+            ctx.moveTo(no2.inX, no2.inY + 10);
+            ctx.lineTo(no2.outX, no2.outY);
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 7;
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(no2.outX, no2.outY);
+            ctx.lineTo(no2.outX - 18, no2.outY - 10);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
             ctx.stroke();
         }
     }
 };
 
 // Добавляем в глобальные массивы
-window.schemeElements.push(p2);
-window.animatedElements.push(p2);
+window.schemeElements.push(pe2);
+window.animatedElements.push(pe2);
 // ========================================================================================================================
 // === РЕЛЕ РЭТ ===
 const ret = {

@@ -632,311 +632,31 @@ window.schemeElements.push(generatorCoil);
 window.animatedElements.push(generatorCoil);
 window.generatorCoil = generatorCoil;
 // ========================================================================================================================
-// === ТЯГОВЫЕ ЭЛЕКТРОДВИГАТЕЛИ (ТЭД1, ТЭД2, ТЭД3) ===
-function createTractionMotor(name, inY, outY, x = 2601) {
-    const centerX = 2601;
-    const centerY = inY + 10;
-    const radius = 7;
+// === ТЯГОВЫЕ ЭЛЕКТРОДВИГАТЕЛИ (ТЭД1–ТЭД6) — ЕДИНАЯ СИСТЕМА АНИМАЦИИ ===
 
+/**
+ * Универсальная функция для создания ТЭД
+ * @param {string} name - Имя двигателя (например, "ТЭД1")
+ * @param {number} inY - Y координата входа (+)
+ * @param {number} outY - Y координата выхода (–)
+ * @param {number} centerX - X центра двигателя
+ * @param {string} activationPoint - Контрольная точка активации анимации, например '2601,400'
+ * @param {string} busPoint - Точка шины для определения направления, например '2689,618'
+ */
+function createTractionMotor(name, inY, outY, centerX, activationPoint, busPoint) {
     return {
         name,
-        x: 2598, // прямоугольник сдвинут, чтобы центр был на 2601
+        x: centerX - 3, // ширина 6 пикселей
         y: inY,
         width: 6,
         height: 20,
-        inX: 2601,
+        inX: centerX,
         inY,
-        outX: 2601,
+        outX: centerX,
         outY,
         centerX,
-        centerY,
-        radius,
-        rotation: 0,
-        isActive: false,
-
-        update(plusPoints, minusPoints) {
-            const hasPlus = plusPoints.has(`${this.inX},${this.inY}`);
-            const hasMinus = minusPoints.has(`${this.outX},${this.outY}`);
-            this.isActive = hasPlus && hasMinus;
-        },
-
-        getPropagationRules(plusPoints, minusPoints) {
-    this.update(plusPoints, minusPoints);
-    const rules = [];
-
-    // Передаём "+" от входа к выходу, если он есть
-    if (plusPoints.has(`${this.inX},${this.inY}`)) {
-        rules.push({
-            from: `${this.inX},${this.inY}`,
-            to: `${this.outX},${this.outY}`,
-            type: 'plus'
-        });
-    }
-
-    // Опционально: передаём "–" от выхода к входу, если цепь замкнута
-    if (minusPoints.has(`${this.outX},${this.outY}`)) {
-        rules.push({
-            from: `${this.outX},${this.outY}`,
-            to: `${this.inX},${this.inY}`,
-            type: 'minus'
-        });
-    }
-
-    return rules;
-},
-
-animate() {
-    console.log('ТЭД animate вызван');
-
-    const networks = window.getNetworks?.();
-    if (!networks) {
-        console.log('networks не доступен');
-        return;
-    }
-
-    console.log('plusPoints:', networks.plusPoints);
-    console.log('minusPoints:', networks.minusPoints);
-
-    const hasPlus = networks.plusPoints.has('2689,618');
-    const hasMinus = networks.minusPoints.has('2689,618');
-
-    console.log('hasPlus:', hasPlus);
-    console.log('hasMinus:', hasMinus);
-
-    if (hasPlus) {
-        this.rotation += 0.1;
-        console.log('rotation увеличен:', this.rotation);
-    } else if (hasMinus) {
-        this.rotation -= 0.1;
-    }
-},
-
-        draw(ctx, networks) {
-            const { plusPoints, minusPoints } = networks;
-            this.update(plusPoints, minusPoints);
-
-            const color = this.isActive ? '#c00' : '#000';
-
-            // Прямоугольник
-            ctx.beginPath();
-            ctx.rect(this.x, this.y, this.width, this.height);
-            ctx.fillStyle = 'white';
-            ctx.fill();
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            // Окружность
-            ctx.beginPath();
-            ctx.arc(this.centerX, this.centerY, this.radius, 0, Math.PI * 2);
-            ctx.fillStyle = 'white';
-            ctx.fill();
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Вращающийся крестик
-            ctx.save();
-            ctx.translate(this.centerX, this.centerY);
-            ctx.rotate(this.rotation);
-            ctx.beginPath();
-            ctx.moveTo(0, -this.radius * 0.8);
-            ctx.lineTo(0, this.radius * 0.8);
-            ctx.moveTo(-this.radius * 0.8, 0);
-            ctx.lineTo(this.radius * 0.8, 0);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.restore();
-
-        }
-    };
-}
-
-const ted1 = createTractionMotor('ТЭД1', 400, 420);
-const ted2 = createTractionMotor('ТЭД2', 460, 480);
-const ted3 = createTractionMotor('ТЭД3', 520, 540);
-
-window.schemeElements.push(ted1, ted2, ted3);
-window.animatedElements.push(ted1, ted2, ted3);
-window.ted1 = ted1;
-window.ted2 = ted2;
-window.ted3 = ted3;
-// ========================================================================================================================
-// === ОБМОТКИ ТЭД1, ТЭД2, ТЭД3 (вертикальные спирали) ===
-const tedCoils = [
-    {
-        name: 'tedCoil1',
-        startX: 2690, startY: 618,
-        endX: 2690, endY: 657,
-        centerX: 2690,
-        width: 20,
-        radius: 8,
-        numTurns: 5
-    },
-    {
-        name: 'tedCoil2',
-        startX: 2690, startY: 674,
-        endX: 2690, endY: 713,
-        centerX: 2690,
-        width: 20,
-        radius: 8,
-        numTurns: 5
-    },
-    {
-        name: 'tedCoil3',
-        startX: 2690, startY: 728,
-        endX: 2690, endY: 767,
-        centerX: 2690,
-        width: 20,
-        radius: 8,
-        numTurns: 5
-    }
-];
-
-// Общая анимация и состояние
-let coilPulsePhase = 0;
-
-// Объект для анимации обмоток
-const tedCoilsAnimator = {
-    update(plusPoints, minusPoints) {
-        // Обновляется автоматически
-    },
-
-    animate() {
-        const networks = window.getNetworks?.();
-        if (!networks) return;
-
-        const hasPlus = networks.plusPoints.has('2689,618');
-        const hasMinus = networks.minusPoints.has('2689,618');
-
-        // Анимируем только если есть сигнал
-        if (hasPlus || hasMinus) {
-            coilPulsePhase += 0.1;
-        }
-    },
-
-    draw(ctx, networks) {
-        const { plusPoints, minusPoints } = networks;
-
-        const hasPlus = plusPoints.has('2689,618');
-        const hasMinus = minusPoints.has('2689,618');
-
-        // Если нет ни +, ни – → просто чёрные обмотки, без анимации
-        if (!hasPlus && !hasMinus) {
-            tedCoils.forEach(coil => {
-                const height = coil.endY - coil.startY;
-                const radius = coil.radius;
-                const coilLeft = coil.centerX - radius - 4;
-                const coilRight = coil.centerX + radius + 4;
-
-                // Фон — белый прямоугольник
-                ctx.beginPath();
-                ctx.rect(coilLeft, coil.startY, coilRight - coilLeft, height);
-                ctx.fillStyle = 'white';
-                ctx.fill();
-                ctx.strokeStyle = 'white';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-
-                // Чёрная спираль
-                ctx.beginPath();
-                for (let i = 0; i <= coil.numTurns * 20; i++) {
-                    const p = i / (coil.numTurns * 20);
-                    const y = coil.startY + p * height;
-                    const x = coil.centerX + Math.cos(p * Math.PI * 2 * coil.numTurns) * radius;
-
-                    if (i === 0) {
-                        ctx.moveTo(x, y);
-                    } else {
-                        ctx.lineTo(x, y);
-                    }
-                }
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-            });
-            return;
-        }
-
-        // Направление "бегущей волны": + → вниз, – → вверх
-        const direction = hasMinus ? -1 : 1; // -1 = снизу вверх, +1 = сверху вниз
-
-        tedCoils.forEach(coil => {
-            const height = coil.endY - coil.startY;
-            const radius = coil.radius;
-            const coilLeft = coil.centerX - radius - 4;
-            const coilRight = coil.centerX + radius + 4;
-
-            // Фон — белый прямоугольник
-            ctx.beginPath();
-            ctx.rect(coilLeft, coil.startY, coilRight - coilLeft, height);
-            ctx.fillStyle = 'white';
-            ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            // Определяем сдвиг фазы для каждой обмотки
-            const t = coilPulsePhase + (coil.name === 'tedCoil1' ? 0 : coil.name === 'tedCoil2' ? 0.3 : 0.6);
-
-            ctx.beginPath();
-            for (let i = 0; i <= coil.numTurns * 20; i++) {
-                const p = i / (coil.numTurns * 20);
-                const y = coil.startY + p * height;
-                const wavePos = (p * 4 + t) % 2;
-                const intensity = wavePos <= 1 ? wavePos : 2 - wavePos;
-                const r = Math.floor(255);
-                const g = Math.floor(165 + intensity * 90); // оранжевый → жёлтый
-
-                const x = coil.centerX + Math.cos(p * Math.PI * 2 * coil.numTurns) * radius;
-
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-
-                // Направление волны: + → сверху вниз, – → снизу вверх
-                const dirOffset = direction === 1 ? p : 1 - p;
-                const alpha = Math.abs(Math.sin(t * 2 + dirOffset * Math.PI * 4)) * 0.7 + 0.3;
-
-                ctx.strokeStyle = `rgb(${r},${g},0)`;
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = alpha;
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-            }
-            ctx.globalAlpha = 1.0;
-        });
-    }
-};
-
-window.schemeElements.push(tedCoilsAnimator);
-window.animatedElements.push(tedCoilsAnimator);
-// ========================================================================================================================
-// ========================================================================================================================
-// === ТЯГОВЫЕ ЭЛЕКТРОДВИГАТЕЛИ (ТЭД4, ТЭД5, ТЭД6) — вторая тележка ===
-
-function createTractionMotor2(name, inY, outY, x = 2901) {
-    const centerX = 2901;
-    const centerY = inY + 10;
-    const radius = 7;
-
-    return {
-        name,
-        x: 2897, // прямоугольник сдвинут, чтобы центр был на 2900
-        y: inY,
-        width: 6,
-        height: 20,
-        inX: 2901,
-        inY,
-        outX: 2901,
-        outY,
-        centerX,
-        centerY,
-        radius,
+        centerY: inY + 10,
+        radius: 7,
         rotation: 0,
         isActive: false,
 
@@ -950,7 +670,6 @@ function createTractionMotor2(name, inY, outY, x = 2901) {
             this.update(plusPoints, minusPoints);
             const rules = [];
 
-            // Передаём "+" от входа к выходу, если он есть
             if (plusPoints.has(`${this.inX},${this.inY}`)) {
                 rules.push({
                     from: `${this.inX},${this.inY}`,
@@ -959,7 +678,6 @@ function createTractionMotor2(name, inY, outY, x = 2901) {
                 });
             }
 
-            // Передаём "–" от выхода к входу, если цепь замкнута
             if (minusPoints.has(`${this.outX},${this.outY}`)) {
                 rules.push({
                     from: `${this.outX},${this.outY}`,
@@ -975,13 +693,19 @@ function createTractionMotor2(name, inY, outY, x = 2901) {
             const networks = window.getNetworks?.();
             if (!networks) return;
 
-            const hasPlus = networks.plusPoints.has('2990,618');
-            const hasMinus = networks.minusPoints.has('2990,618');
+            // Проверяем наличие "+" в точке активации
+            const isActivated = networks.plusPoints.has(activationPoint);
 
-            if (hasPlus) {
-                this.rotation += 0.1;
-            } else if (hasMinus) {
-                this.rotation -= 0.1;
+            // Определяем направление по шине
+            const hasPlusBus = networks.plusPoints.has(busPoint);
+            const hasMinusBus = networks.minusPoints.has(busPoint);
+
+            if (isActivated) {
+                if (hasPlusBus) {
+                    this.rotation += 0.1; // вперёд
+                } else if (hasMinusBus) {
+                    this.rotation -= 0.1; // назад
+                }
             }
         },
 
@@ -1026,9 +750,21 @@ function createTractionMotor2(name, inY, outY, x = 2901) {
     };
 }
 
-const ted4 = createTractionMotor2('ТЭД4', 400, 420);
-const ted5 = createTractionMotor2('ТЭД5', 460, 480);
-const ted6 = createTractionMotor2('ТЭД6', 520, 540);
+// === ГРУППА 1: ТЭД1, ТЭД2, ТЭД3 (первая тележка) ===
+const ted1 = createTractionMotor('ТЭД1', 400, 420, 2601, '2601,400', '2689,618');
+const ted2 = createTractionMotor('ТЭД2', 460, 480, 2601, '2601,400', '2689,618');
+const ted3 = createTractionMotor('ТЭД3', 520, 540, 2601, '2601,400', '2689,618');
+
+window.schemeElements.push(ted1, ted2, ted3);
+window.animatedElements.push(ted1, ted2, ted3);
+window.ted1 = ted1;
+window.ted2 = ted2;
+window.ted3 = ted3;
+
+// === ГРУППА 2: ТЭД4, ТЭД5, ТЭД6 (вторая тележка) ===
+const ted4 = createTractionMotor('ТЭД4', 400, 420, 2901, '2901,400', '2990,618');
+const ted5 = createTractionMotor('ТЭД5', 460, 480, 2901, '2901,400', '2990,618');
+const ted6 = createTractionMotor('ТЭД6', 520, 540, 2901, '2901,400', '2990,618');
 
 window.schemeElements.push(ted4, ted5, ted6);
 window.animatedElements.push(ted4, ted5, ted6);
@@ -1037,71 +773,50 @@ window.ted5 = ted5;
 window.ted6 = ted6;
 
 // ========================================================================================================================
-// === ОБМОТКИ ТЭД4, ТЭД5, ТЭД6 (вертикальные спирали) ===
-const tedCoils2 = [
-    {
-        name: 'tedCoil4',
-        startX: 2990, startY: 618,
-        endX: 2990, endY: 657,
-        centerX: 2990,
-        width: 20,
-        radius: 8,
-        numTurns: 5
-    },
-    {
-        name: 'tedCoil5',
-        startX: 2990, startY: 674,
-        endX: 2990, endY: 713,
-        centerX: 2990,
-        width: 20,
-        radius: 8,
-        numTurns: 5
-    },
-    {
-        name: 'tedCoil6',
-        startX: 2990, startY: 728,
-        endX: 2990, endY: 767,
-        centerX: 2990,
-        width: 20,
-        radius: 8,
-        numTurns: 5
-    }
-];
+// === ОБМОТКИ ТЭД (спирали) — ЕДИНАЯ ЛОГИКА ДЛЯ ОБЕИХ ТЕЛЕЖЕК ===
+let coilPulsePhase = 0;
 
-// Объект для анимации обмоток второй тележки
-const tedCoilsAnimator2 = {
-    update(plusPoints, minusPoints) {
-        // Обновляется автоматически
-    },
+/**
+ * Создаёт объект-аниматор для группы обмоток
+ * @param {Array} coils - Массив описаний обмоток
+ * @param {string} busPoint - Точка шины для активации (например, '2689,618')
+ * @param {number} phaseOffset - Сдвиг фазы для синхронизации волн
+ */
+function createCoilsAnimator(coils, busPoint, phaseOffset = 0) {
+    return {
+        animate() {
+            const networks = window.getNetworks?.();
+            if (!networks) return;
 
-    animate() {
-        const networks = window.getNetworks?.();
-        if (!networks) return;
+            const hasPlus = networks.plusPoints.has(busPoint);
+            const hasMinus = networks.minusPoints.has(busPoint);
 
-        const hasPlus = networks.plusPoints.has('2990,618');
-        const hasMinus = networks.minusPoints.has('2990,618');
+            if (hasPlus || hasMinus) {
+                coilPulsePhase += 0.1;
+            }
+        },
 
-        // Анимируем только если есть сигнал
-        if (hasPlus || hasMinus) {
-            coilPulsePhase += 0.1;
-        }
-    },
+        draw(ctx, networks) {
+            const { plusPoints, minusPoints } = networks;
+            const hasPlus = plusPoints.has(busPoint);
+            const hasMinus = minusPoints.has(busPoint);
 
-    draw(ctx, networks) {
-        const { plusPoints, minusPoints } = networks;
+            if (!hasPlus && !hasMinus) {
+                // Пассивное состояние — чёрные спирали
+                coils.forEach(coil => drawStaticCoil(ctx, coil));
+                return;
+            }
 
-        const hasPlus = plusPoints.has('2990,618');
-        const hasMinus = minusPoints.has('2990,618');
+            const direction = hasMinus ? -1 : 1; // – → вверх, + → вниз
 
-        // Если нет ни +, ни – → просто чёрные обмотки
-        if (!hasPlus && !hasMinus) {
-            tedCoils2.forEach(coil => {
+            coils.forEach((coil, index) => {
+                const t = coilPulsePhase + phaseOffset + index * 0.3;
                 const height = coil.endY - coil.startY;
                 const radius = coil.radius;
                 const coilLeft = coil.centerX - radius - 4;
                 const coilRight = coil.centerX + radius + 4;
 
-                // Фон — белый прямоугольник
+                // Фон
                 ctx.beginPath();
                 ctx.rect(coilLeft, coil.startY, coilRight - coilLeft, height);
                 ctx.fillStyle = 'white';
@@ -1110,7 +825,6 @@ const tedCoilsAnimator2 = {
                 ctx.lineWidth = 1;
                 ctx.stroke();
 
-                // Чёрная спираль
                 ctx.beginPath();
                 for (let i = 0; i <= coil.numTurns * 20; i++) {
                     const p = i / (coil.numTurns * 20);
@@ -1122,66 +836,68 @@ const tedCoilsAnimator2 = {
                     } else {
                         ctx.lineTo(x, y);
                     }
-                }
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-            });
-            return;
-        }
 
-        // Направление "бегущей волны"
-        const direction = hasMinus ? -1 : 1;
+                    const dirOffset = direction === 1 ? p : 1 - p;
+                    const alpha = Math.abs(Math.sin(t * 2 + dirOffset * Math.PI * 4)) * 0.7 + 0.3;
+                    const g = 165 + Math.abs(Math.sin(t + p * 10)) * 90;
 
-        tedCoils2.forEach(coil => {
-            const height = coil.endY - coil.startY;
-            const radius = coil.radius;
-            const coilLeft = coil.centerX - radius - 4;
-            const coilRight = coil.centerX + radius + 4;
-
-            // Фон — белый прямоугольник
-            ctx.beginPath();
-            ctx.rect(coilLeft, coil.startY, coilRight - coilLeft, height);
-            ctx.fillStyle = 'white';
-            ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            // Определяем сдвиг фазы
-            const t = coilPulsePhase + (coil.name === 'tedCoil4' ? 0 : coil.name === 'tedCoil5' ? 0.3 : 0.6);
-
-            ctx.beginPath();
-            for (let i = 0; i <= coil.numTurns * 20; i++) {
-                const p = i / (coil.numTurns * 20);
-                const y = coil.startY + p * height;
-                const wavePos = (p * 4 + t) % 2;
-                const intensity = wavePos <= 1 ? wavePos : 2 - wavePos;
-                const r = Math.floor(255);
-                const g = Math.floor(165 + intensity * 90);
-
-                const x = coil.centerX + Math.cos(p * Math.PI * 2 * coil.numTurns) * radius;
-
-                if (i === 0) {
+                    ctx.strokeStyle = `rgb(255,${Math.floor(g)},0)`;
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = alpha;
+                    ctx.stroke();
+                    ctx.beginPath();
                     ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
                 }
+                ctx.globalAlpha = 1.0;
+            });
+        }
+    };
+}
 
-                const dirOffset = direction === 1 ? p : 1 - p;
-                const alpha = Math.abs(Math.sin(t * 2 + dirOffset * Math.PI * 4)) * 0.7 + 0.3;
+function drawStaticCoil(ctx, coil) {
+    const height = coil.endY - coil.startY;
+    const radius = coil.radius;
+    const coilLeft = coil.centerX - radius - 4;
+    const coilRight = coil.centerX + radius + 4;
 
-                ctx.strokeStyle = `rgb(${r},${g},0)`;
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = alpha;
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-            }
-            ctx.globalAlpha = 1.0;
-        });
+    ctx.beginPath();
+    ctx.rect(coilLeft, coil.startY, coilRight - coilLeft, height);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.beginPath();
+    for (let i = 0; i <= coil.numTurns * 20; i++) {
+        const p = i / (coil.numTurns * 20);
+        const y = coil.startY + p * height;
+        const x = coil.centerX + Math.cos(p * Math.PI * 2 * coil.numTurns) * radius;
+
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
     }
-};
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+}
+
+// === Аниматор для обмоток первой тележки ===
+const tedCoilsAnimator = createCoilsAnimator([
+    { name: 'tedCoil1', startX: 2690, startY: 618, endX: 2690, endY: 657, centerX: 2690, radius: 8, numTurns: 5 },
+    { name: 'tedCoil2', startX: 2690, startY: 674, endX: 2690, endY: 713, centerX: 2690, radius: 8, numTurns: 5 },
+    { name: 'tedCoil3', startX: 2690, startY: 728, endX: 2690, endY: 767, centerX: 2690, radius: 8, numTurns: 5 }
+], '2689,618', 0);
+
+window.schemeElements.push(tedCoilsAnimator);
+window.animatedElements.push(tedCoilsAnimator);
+
+// === Аниматор для обмоток второй тележки ===
+const tedCoilsAnimator2 = createCoilsAnimator([
+    { name: 'tedCoil4', startX: 2990, startY: 618, endX: 2990, endY: 657, centerX: 2990, radius: 8, numTurns: 5 },
+    { name: 'tedCoil5', startX: 2990, startY: 674, endX: 2990, endY: 713, centerX: 2990, radius: 8, numTurns: 5 },
+    { name: 'tedCoil6', startX: 2990, startY: 728, endX: 2990, endY: 767, centerX: 2990, radius: 8, numTurns: 5 }
+], '2990,618', 0.6);
 
 window.schemeElements.push(tedCoilsAnimator2);
 window.animatedElements.push(tedCoilsAnimator2);

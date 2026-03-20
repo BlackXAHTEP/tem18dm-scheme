@@ -1,12 +1,9 @@
 
 
-function addWire(name, points, type, invisible = false) {
-    window.allPostSwitchWires.push({
-        name,
-        points,
-        type,
-        invisible
-    });
+function addWire(name, points, type, invisible) {
+    const wire = { name, points, type, invisible };
+    window.allPostSwitchWires.push(wire);
+    return wire; // <-- ЭТО ОБЯЗАТЕЛЬНО!
 }
 
 // === ДОБАВЛЕНИЕ ВСЕХ ПРОВОДОВ ===
@@ -272,7 +269,7 @@ addWire('От кРКВ',   [{x:800,y:227},{x:778,y:227},],'minus');
 addWire('От ОМ1 до П1',   [{x:729,y:378},{x:763,y:378},],'plus');
 addWire('От ОМ2 до П2',   [{x:729,y:405},{x:779,y:406},],'plus');
 addWire('От Кв Тяга до кПЧТ ',   [{x:236,y:900},{x:307,y:900},],'plus');
-addWire('От кПЧТ до кЭПК',   [{x:307,y:900},{x:385,y:900},{x:385,y:639},{x:119,y:639},{x:121,y:330},
+addWire('От кПЧТ до кЭПК',   [{x:307,y:900},{x:380,y:900},{x:385,y:900},{x:385,y:639},{x:119,y:639},{x:121,y:330},
                               {x:125,y:327},{x:167,y:325},],'plus');
 addWire('От кЭПК до кРММ1. ',   [{x:200,y:325},{x:227,y:325},],'plus');
 addWire('От кЭПК до кРММ2. ',   [{x:227,y:325},{x:201,y:354},{x:201,y:374},{x:227,y:373},],'plus');
