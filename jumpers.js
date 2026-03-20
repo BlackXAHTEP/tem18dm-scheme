@@ -4,7 +4,7 @@
  * - Режим: клик на точку → клик на другую → создание провода
  * - Автоопределение типа (+/-) по первой точке
  * - Подсветка всех точек подключения в режиме
- * - Удаление ПКМ с очисткой из allPostSwitchWires
+ * - Удаление ПКМ или двойным кликом (для мобильных и десктопа)
  */
 
 let isJumperMode = false;        // активен ли режим
@@ -12,6 +12,8 @@ let jumperStartPoint = null;     // начальная точка
 let tempJumper = null;           // временная линия до мыши
 
 window.jumpers = [];             // массив активных перемычек
+let lastClickTime = 0;           // время последнего клика (для двойного)
+const DOUBLE_CLICK_DELAY = 300;  // мс, максимальный интервал между кликами
 
 // === ИНИЦИАЛИЗАЦИЯ ===
 document.addEventListener('DOMContentLoaded', () => {
@@ -41,8 +43,24 @@ document.getElementById('scheme-canvas').addEventListener('click', (e) => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    const now = Date.now();
+    const timeSinceLastClick = now - lastClickTime;
+
+    // Проверяем, был ли двойной клик (по перемычке)
+    if (timeSinceLastClick < DOUBLE_CLICK_DELAY) {
+        if (removeJumperAt(x, y)) {
+            e.preventDefault(); // блокируем другие действия
+            lastClickTime = 0;  // сбрасываем, чтобы не цепляло третий клик
+            return;
+        }
+    }
+
+    // Обычный клик — для создания перемычки
     const point = findNearestConnectionPoint(x, y);
-    if (!point) return;
+    if (!point) {
+        lastClickTime = now;
+        return;
+    }
 
     if (!jumperStartPoint) {
         // Первый клик — начало перемычки
@@ -72,7 +90,7 @@ document.getElementById('scheme-canvas').addEventListener('click', (e) => {
                 to: point,
                 wireType: jumperStartPoint.wireType,
                 name: `Перемычка ${window.jumpers.length + 1}`,
-                wire: wire  // сохраняем ссылку на провод
+                wire: wire
             });
 
             console.log(`[jumpers.js] Перемычка создана: ${wire.name} (${wire.type})`);
@@ -83,6 +101,9 @@ document.getElementById('scheme-canvas').addEventListener('click', (e) => {
         tempJumper = null;
         requestRedraw();
     }
+
+    // Сохраняем время клика
+    lastClickTime = now;
 });
 
 // === ПОИСК БЛИЖАЙШЕЙ ТОЧКИ ===
@@ -102,16 +123,20 @@ function findNearestConnectionPoint(x, y) {
     return nearest;
 }
 
-// === УДАЛЕНИЕ ПЕРЕМЫЧКИ (по ПКМ) ===
-document.getElementById('scheme-canvas').addEventListener('contextmenu', (e) => {
+// === УДАЛЕНИЕ ПЕРЕМЫЧКИ ПО ДВОЙНОМУ КЛИКУ ===
+canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     if (!isJumperMode) return;
 
-    const canvas = e.target;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    removeJumperAt(x, y);
+});
+
+// === ФУНКЦИЯ УДАЛЕНИЯ ПЕРЕМЫЧКИ ===
+function removeJumperAt(x, y) {
     for (let i = window.jumpers.length - 1; i >= 0; i--) {
         const j = window.jumpers[i];
         if (isPointNearLine(x, y, j)) {
@@ -128,10 +153,11 @@ document.getElementById('scheme-canvas').addEventListener('contextmenu', (e) => 
 
                 requestRedraw();
             }
-            break;
+            return true; // клик был по перемычке
         }
     }
-});
+    return false; // клик мимо
+}
 
 // === ВСПОМОГАТЕЛЬНАЯ: проверка, близко ли к линии ===
 function isPointNearLine(px, py, line) {
